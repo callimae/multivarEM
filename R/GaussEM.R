@@ -86,17 +86,18 @@ GaussEM <- function(empirical.data, k){
     cat("Components: ", crayon::bold(k), "\n")
         while (change > 1e-5){
             params0 <- params
-            ll_prior <- parallel::mclapply(1:k, function(k, empirical.data, means, vars, alphas, ones1N){
+            ll_prior <- parallel::mclapply(1:k, function(k, empirical.data, means, vars, alphas){
                             nvar = ncol(empirical.data)
                              xi_xmean2 <- (t(empirical.data)-means[[k]])^2
                              xi_xmean2_var <- colSums(xi_xmean2/vars[[k]])/2
                              lvar_lpi <- sum(log((vars[[k]])))/2 - (nvar/2)*log(2*pi)
                              out <- log(alphas[[k]]) - lvar_lpi - xi_xmean2_var
                             return(out)
-                        }, empirical.data = empirical.data, ones1N = ones1N, mc.cores = 1,
+                        }, empirical.data = empirical.data,
                         means = params$means,
                     vars = params$vars,
-                alphas = params$alphas)
+                alphas = params$alphas,
+                mc.cores = 1) # Need to be tested.
             params <- gauss_MAX(ll_prior, empirical.data, varmin = varmin, k = k)
             change <- gaussEM_change(params0 = params0, params = params)
                 cat("Change:", change, "\r")
