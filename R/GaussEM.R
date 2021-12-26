@@ -9,11 +9,27 @@ apply.by.cluster <- function(empirical.data, clusters, MARGIN, fun, ..., mc.core
 }
 
 gaussEM_ini <- function(empirical.data, k){
+    # point.crs <- sample(nrow(empirical.data), size = 1)
+    # (points.crs <- c(point.crs))
+    # while(TRUE){
+    #     dists <- c()
+    #     P <- unlist(empirical.data[points.crs[length(points.crs)],])
+    #     for (i in 1:nrow(empirical.data)){
+    #         Q <- unlist(empirical.data[i,])
+    #         dist <- philentropy::manhattan(P, Q, testNA = F)
+    #         dists <- c(dists, dist)
+    #     }
+    #     if(any(points.crs==which.max(dists))){break}
+    #     points.crs <- c(points.crs, which.max(dists))
+    # }
+    # library(mclust)
+    # decomposition <- Mclust(dists, G = k)
+    # clusters <- decomposition$classification
+    # clusters <- (kmeans(x = empirical.data, centers = k))$cluster
     clusters <- rep(0, times = nrow(empirical.data))
     for(k.el in 1:k){
         clusters[sample(nrow(empirical.data), size = 10)] <- k.el
         }
-    # clusters <- (kmeans(x = empirical.data, centers = k))$cluster
     means.list <- apply.by.cluster(empirical.data = empirical.data, clusters = clusters, MARGIN = 2, fun = mean)
     vars.list <- apply.by.cluster(empirical.data = empirical.data, clusters = clusters, MARGIN = 2, fun = var)
     alpha <- runif(k, min = 0.05); alpha <- alpha/sum(alpha)
@@ -68,26 +84,24 @@ GaussEM <- function(empirical.data, k){
     ones1N <- rep(1, times = nrow(empirical.data))
     change <- 1
     cat("*** GaussEM ***\n")
-    cat("Number of components: ", crayon::bold(k), "\n")
-    itr <- 0
-    while (change > 1e-5){
-        params0 <- params
-        ll_prior <- parallel::mclapply(1:k, function(k, empirical.data, means, vars, alphas, ones1N){
-                        nvar = ncol(empirical.data)
-                         xi_xmean2 <- (t(empirical.data)-means[[k]])^2
-                         xi_xmean2_var <- colSums(xi_xmean2/vars[[k]])/2
-                         lvar_lpi <- sum(log((vars[[k]])))/2 - (nvar/2)*log(2*pi)
-                         out <- log(alphas[[k]]) - lvar_lpi - xi_xmean2_var
-                        return(out)
-                    }, empirical.data = empirical.data, ones1N = ones1N, mc.cores = 1,
-                    means = params$means,
-                vars = params$vars,
-            alphas = params$alphas)
-        params <- gauss_MAX(ll_prior, empirical.data, varmin = varmin, k = k)
-        change <- gaussEM_change(params0 = params0, params = params)
-        itr <- itr+1
-        cat("Change:", change,"\r")
-    }
-    cat("Iterations:", itr, "\n")
-return(apply(params$ll_prior, 1, which.max))
+    cat("Components: ", crayon::bold(k), "\n")
+        while (change > 1e-5){
+            params0 <- params
+            ll_prior <- parallel::mclapply(1:k, function(k, empirical.data, means, vars, alphas, ones1N){
+                            nvar = ncol(empirical.data)
+                             xi_xmean2 <- (t(empirical.data)-means[[k]])^2
+                             xi_xmean2_var <- colSums(xi_xmean2/vars[[k]])/2
+                             lvar_lpi <- sum(log((vars[[k]])))/2 - (nvar/2)*log(2*pi)
+                             out <- log(alphas[[k]]) - lvar_lpi - xi_xmean2_var
+                            return(out)
+                        }, empirical.data = empirical.data, ones1N = ones1N, mc.cores = 1,
+                        means = params$means,
+                    vars = params$vars,
+                alphas = params$alphas)
+            params <- gauss_MAX(ll_prior, empirical.data, varmin = varmin, k = k)
+            change <- gaussEM_change(params0 = params0, params = params)
+            cat("Change:", change, "\r")
+
+        }
+    return(apply(params$ll_prior, 1, which.max))
 }
