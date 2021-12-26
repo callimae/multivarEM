@@ -81,7 +81,6 @@ GaussEM <- function(empirical.data, k){
     library(matrixStats)
     params <- gaussEM_ini(empirical.data = empirical.data, k = k)
     varmin <- lapply(params$vars, function(x) x * 1e-4)
-    ones1N <- rep(1, times = nrow(empirical.data))
     change <- 1
     cat("*** GaussEM ***\n")
     cat("Components: ", crayon::bold(k), "\n")
@@ -100,8 +99,7 @@ GaussEM <- function(empirical.data, k){
                 alphas = params$alphas)
             params <- gauss_MAX(ll_prior, empirical.data, varmin = varmin, k = k)
             change <- gaussEM_change(params0 = params0, params = params)
-            cat("Change:", change, "\r")
-
+                cat("Change:", change, "\r")
         }
     return(apply(params$ll_prior, 1, which.max))
 }
