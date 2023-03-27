@@ -1,4 +1,3 @@
-# Test comment
 gaussEM_ini <- function(xdata, k){
     clusters <- params_ini(xdata = xdata, k = k, type = "random")
     means.list <- apply_by_cluster(xdata = xdata, fun = colMeans2, clusters = clusters)
