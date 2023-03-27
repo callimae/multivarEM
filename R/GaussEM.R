@@ -1,106 +1,119 @@
-# GaussEM version 0.5
-apply.by.cluster <- function(empirical.data, clusters, MARGIN, fun, ..., mc.cores = parallel::detectCores()-1){
-    k.clusters <- 1:max(clusters)
-        parallel::mclapply(k.clusters, function(k, empirical.data, clusters, MARGIN, fun, ...){
-            inx <- which(clusters == k)
-            out <- apply(empirical.data[inx,], MARGIN = MARGIN, FUN = fun, ...)
-        }, empirical.data = empirical.data, clusters = clusters, MARGIN = MARGIN, fun = fun, ...,
-        mc.cores = 1)
-}
 
-gaussEM_ini <- function(empirical.data, k){
-    # point.crs <- sample(nrow(empirical.data), size = 1)
-    # (points.crs <- c(point.crs))
-    # while(TRUE){
-    #     dists <- c()
-    #     P <- unlist(empirical.data[points.crs[length(points.crs)],])
-    #     for (i in 1:nrow(empirical.data)){
-    #         Q <- unlist(empirical.data[i,])
-    #         dist <- philentropy::manhattan(P, Q, testNA = F)
-    #         dists <- c(dists, dist)
-    #     }
-    #     if(any(points.crs==which.max(dists))){break}
-    #     points.crs <- c(points.crs, which.max(dists))
-    # }
-    # library(mclust)
-    # decomposition <- Mclust(dists, G = k)
-    # clusters <- decomposition$classification
-    # clusters <- (kmeans(x = empirical.data, centers = k))$cluster
-    clusters <- rep(0, times = nrow(empirical.data))
-    for(k.el in 1:k){
-        clusters[sample(nrow(empirical.data), size = 10)] <- k.el
-        }
-    means.list <- apply.by.cluster(empirical.data = empirical.data, clusters = clusters, MARGIN = 2, fun = mean)
-    vars.list <- apply.by.cluster(empirical.data = empirical.data, clusters = clusters, MARGIN = 2, fun = var)
+gaussEM_ini <- function(xdata, k){
+    clusters <- params_ini(xdata = xdata, k = k, type = "random")
+    means.list <- apply_by_cluster(xdata = xdata, fun = colMeans2, clusters = clusters)
+    vars.list <- (abs(means.list)+1e-1) * 1e-4
+    vars.list[is.na(vars.list)] <- abs(means.list[is.na(vars.list)])
+    vars.list[vars.list <= 0] <- runif(sum(vars.list <= 0), min = 1e-6, max = max(vars.list))
+    varmin <- abs(vars.list)
     alpha <- runif(k, min = 0.05); alpha <- alpha/sum(alpha)
     out <- list("means" = means.list,
                 "vars" = vars.list,
+                "varmin" = varmin,
                 "alphas" = alpha)
     return(out)
 }
 
-gauss_MAX <- function(ll_prior, empirical.data, varmin, k){
-    ll_prior.df <- do.call(cbind, ll_prior)
-    #denum <- rowLogSumExps(ll_prior.df) # Which one is better? Here we are standardizing as usual.
-    denum <- apply(ll_prior.df, 1, max) # Which one is better? Here we take maximum value
-    post <- exp(ll_prior.df - denum)
-    post_plus <- post/rowSums(post) # allows us to avoid standardization of alphas, means, sds
-    post_plus_sum <- colSums(post_plus)
-
+gauss_MAX <- function(ll_prior, xdata, txdata, varmin, k, vars, cenv){
+    denum <- Rfast::colMaxs(ll_prior, value = TRUE)
+    post <- ll_prior - denum
+    post_plus <- exp(post - rowLogSumExps(post))#+1e-311 # allows us to avoid standardization of alphas, means, sds
+    post_plus_sum <- Rfast::colsums(post_plus)
+    means2 <- cenv$params$means
+    alphas2 <- cenv$params$alphas
+    vars2 <- cenv$params$vars
     alphas <- post_plus_sum/nrow(post)
-    if (any(alphas<0.001)){alphas[alphas < 0.001] <- 0.01}
-
-    means <- crossprod(post_plus, as.matrix(empirical.data))/post_plus_sum
-    means <- lapply(1:k, function(k, means) means[k,], means)
-    vars <- lapply(1:k, function(k, means, empirical.data, post_plus){
-        xvar <- tcrossprod(post_plus[,k], ((t(empirical.data) - means[[k]])^2))
-        xvar <- c(xvar/sum(post_plus[,k]))
-        xvar[xvar < varmin[[k]]] <- varmin[[k]][xvar < varmin[[k]]]
-        return(xvar)
-    }, means = means,
-    empirical.data = empirical.data,
-    post_plus = post_plus)
-    out <- list("posterior" = post,
-                "ll_prior" = ll_prior.df,
-                "means" = means,
-                "vars" = vars,
-                "alphas" = alphas)
-}
-
-gaussEM_change <- function(params0, params){
-   rbind_xy_diff  <- function(x, y){
-        sum(do.call(rbind, x) - do.call(rbind, y))
+    means <- crossprod(post_plus, xdata)/post_plus_sum
+    for(i in seq_len(k)){
+        xvar <- tcrossprod(post_plus[,i], ((txdata - means[i,])^2))
+        vars[i,] <- c(xvar/sum(post_plus[,i]))
+        vars[i,][vars[i,]<=0] <- varmin[i,][vars[i,]<=0]
     }
-    means <- rbind_xy_diff(x = params0$means, y = params$means)
-    vars <- rbind_xy_diff(x = params0$vars, y = params$vars)
-    alphas <-  params0$alphas - params$alphas
-    out <- abs(sum(c(means, vars, alphas)))
+    varmin <- vars
+    mean = (means + means2)/2
+    vars = (vars + vars2)/2
+    alphas = (alphas + alphas2)/2
+    ll <- sum(denum) + matrixStats::logSumExp(post)
+    out <- list("posterior" = post, "ll_prior" = ll_prior,
+                "ll" = ll, "varmin" = varmin,
+                "means" = means, "vars" = vars, "alphas" = alphas)
 }
 
-GaussEM <- function(empirical.data, k){
-    library(matrixStats)
-    params <- gaussEM_ini(empirical.data = empirical.data, k = k)
-    varmin <- lapply(params$vars, function(x) x * 1e-4)
-    change <- 1
-    cat("*** GaussEM ***\n")
+GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8 start_ini = 10, start_ini_cores = 1){
+    if(!any(class(xdata) == "matrix")){
+        xdata <- as.matrix(xdata)
+        mode(xdata) <- "numeric"
+    }
+    if(anyNA(xdata)){
+        errorCondition("Data contains NA values. Remove or impute them.")
+    }
+
+    cenv <- environment()
+    llmvnorm <- function(xdata, vmeans, vvars, valph, nvar){
+        xi_xmean <- (xdata-vmeans)^2
+        xi_xmean_var <- Rfast::colsums(xi_xmean/vvars)/2
+        lvar_lpi <- sum(log((vvars)))/2 - (nvar/2)*log(2*pi)
+        return(log(valph) - lvar_lpi - xi_xmean_var)
+    }
+
+    cat(crayon::green("*** GaussEM ***\n"))
     cat("Components: ", crayon::bold(k), "\n")
-        while (change > 1e-5){
-            params0 <- params
-            ll_prior <- parallel::mclapply(1:k, function(k, empirical.data, means, vars, alphas){
-                            nvar = ncol(empirical.data)
-                             xi_xmean2 <- (t(empirical.data)-means[[k]])^2
-                             xi_xmean2_var <- colSums(xi_xmean2/vars[[k]])/2
-                             lvar_lpi <- sum(log((vars[[k]])))/2 - (nvar/2)*log(2*pi)
-                             out <- log(alphas[[k]]) - lvar_lpi - xi_xmean2_var
-                            return(out)
-                        }, empirical.data = empirical.data,
-                        means = params$means,
-                    vars = params$vars,
-                alphas = params$alphas,
-                mc.cores = 1) # Need to be tested.
-            params <- gauss_MAX(ll_prior, empirical.data, varmin = varmin, k = k)
-            change <- gaussEM_change(params0 = params0, params = params)
-                cat("Change:", change, "\r")
-        }
-    return(apply(params$ll_prior, 1, which.max))
+
+    if(nrow(xdata)==1){
+        warning("Data has only one observation")
+        params <- list("cluster" = 1)
+        return(params)
+    }
+
+    # Define function for difference in paramters from internal params_change
+    par_change <- params_change(type = "normal")
+
+    if(is.null(obs.names)){
+        obs.names <- 1:nrow(xdata)
+    }
+    # Initialization
+        txdata <- t.default(xdata)
+        bic.counter <- 0
+        dimdata <- dim(xdata)
+        .delta = 100; itr = 0; ll = c(-Inf)
+        nvar <- ncol(xdata)
+        ll_prior <- matrix(nrow = nrow(xdata), ncol = k)
+
+    ll_try <- bettermc::mclapply(1:start_ini, function(x){
+        params <- gaussEM_ini(xdata = xdata, k = k)
+        ll_prior <- bettermc::mclapply(seq_len(k), function(x, xdata, vmeans, vvars, valph, nvar){
+            llmvnorm(xdata, vmeans[x,], vvars[x,], valph[x], nvar)
+        }, xdata = txdata, vmeans = params$means, vvars = params$vars,
+        valph = params$alphas,nvar = nvar, mc.preschedule = T, mc.cores = cores, mc.progress = F)
+        ll_prior <- do.call(cbind, ll_prior)
+        params$ini_ll <- exp(ll_prior) |> sum() |> log()
+        return(params)
+    }, mc.cores = start_ini_cores)
+    params <- ll_try[[which.max(sapply(ll_try, function(x) x$ini_ll))]]; rm(ll_try)
+
+    while (.delta >= tol & itr <= em.itr){
+        params0 <- params
+        ll_prior <- parallel::mclapply(seq_len(k), function(x, xdata, vmeans, vvars, valph, nvar){
+            llmvnorm(xdata, vmeans[x,], vvars[x,], valph[x], nvar)
+        }, xdata = txdata, vmeans = params$means, vvars = params$vars,
+        valph = params$alphas,nvar = nvar, mc.preschedule = T, mc.cores = 5)
+        ll_prior <- do.call(cbind, ll_prior)
+        params <- gauss_MAX(ll_prior, xdata = xdata, txdata = txdata,
+                            varmin = params$varmin, k = k,
+                            vars = params$vars, cenv = cenv)
+        #if(abs(ll[length(ll)]-params$ll) < 1e-8){break}
+        ll <- c(ll, params$ll)
+        if(.delta == par_change(params0 = params0, params = params)){break}
+        .delta <- par_change(params0 = params0, params = params)
+        itr = itr + 1
+
+        cat("Change:", .delta, ": ", itr, "\r")
+    }
+        params$cluster <- apply(params$ll_prior, 1, which.max)
+        bic <- log(prod(dimdata))*((k-1)+2*k*dimdata[2])-2*ll
+        names(params$cluster) <- obs.names
+        params$varmin <- NULL
+        params$bic <- bic
+        params$ll <- ll
+        return(params)
 }

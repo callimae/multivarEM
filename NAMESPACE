@@ -1,1 +1,7 @@
 exportPattern("^[[:alpha:]]+")
+import(MASS)
+import(MultiRNG)
+import(crayon)
+import(data.table)
+import(readr)
+import(matrixStats)
