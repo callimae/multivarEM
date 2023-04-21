@@ -4,7 +4,7 @@ Title: Data clustering with multidimensional EM
 Version: 0.4.0
 Author: Mateusz Kania
 Maintainer: Mateusz Kania <mkania@polsl.pl>
-Description: multivarEM package contains few implementations of Expectation-Maximization algorithm, multinomialEM, gaussEM
+Description: multivarEM package contains a few implementations of Expectation-Maximization algorithm, multinomialEM, gaussEM
 Imports:
     MultiRNG, crayon, MASS, data.table, readr, matrixStats, Rfast
 License: What license is it under?
