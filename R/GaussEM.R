@@ -1,7 +1,7 @@
 gaussEM_ini <- function(xdata, k){
     clusters <- params_ini(xdata = xdata, k = k, type = "random")
     means.list <- apply_by_cluster(xdata = xdata, fun = colMeans2, clusters = clusters)
-    vars.list <- (abs(means.list)+1e-1) * 1e-4
+    vars.list <- (abs(means.list)) + 1e-4
     vars.list[is.na(vars.list)] <- abs(means.list[is.na(vars.list)])
     vars.list[vars.list <= 0] <- runif(sum(vars.list <= 0), min = 1e-6, max = max(vars.list))
     varmin <- abs(vars.list)
