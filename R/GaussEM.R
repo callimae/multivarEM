@@ -38,7 +38,7 @@ gauss_MAX <- function(ll_prior, xdata, txdata, varmin, k, vars, cenv){
                 "means" = means, "vars" = vars, "alphas" = alphas)
 }
 
-GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8, start_ini = 10, start_ini_cores = 1){
+GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8, start_ini = 10, start_ini_cores = 1, obs.names = NULL){
     if(!any(class(xdata) == "matrix")){
         xdata <- as.matrix(xdata)
         mode(xdata) <- "numeric"
