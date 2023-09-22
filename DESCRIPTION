@@ -6,7 +6,7 @@ Author: Mateusz Kania
 Maintainer: Mateusz Kania <mkania@polsl.pl>
 Description: multivarEM package contains a few implementations of Expectation-Maximization algorithm, multinomialEM, gaussEM
 Imports:
-    MultiRNG, crayon, MASS, data.table, readr, matrixStats, Rfast, bettermc
+    MultiRNG, crayon, MASS, data.table, readr, matrixStats, Rfast
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
