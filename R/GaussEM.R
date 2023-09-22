@@ -16,7 +16,7 @@ gaussEM_ini <- function(xdata, k){
 gauss_MAX <- function(ll_prior, xdata, txdata, varmin, k, vars, cenv){
     denum <- Rfast::colMaxs(ll_prior, value = TRUE)
     post <- ll_prior - denum
-    post_plus <- exp(post - rowLogSumExps(post))#+1e-311 # allows us to avoid standardization of alphas, means, sds
+    post_plus <- exp(post - matrixStats::rowLogSumExps(post))#+1e-311 # allows us to avoid standardization of alphas, means, sds
     post_plus_sum <- Rfast::colsums(post_plus)
     means2 <- cenv$params$means
     alphas2 <- cenv$params$alphas
