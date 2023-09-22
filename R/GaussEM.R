@@ -84,7 +84,7 @@ GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8, start_ini = 10, start_i
 
     ll_try <- bettermc::mclapply(1:start_ini, function(x){
         params <- gaussEM_ini(xdata = xdata, k = k)
-        ll_prior <- bettermc::mclapply(seq_len(k), function(x, xdata, vmeans, vvars, valph, nvar){
+        ll_prior <- parallel_function(seq_len(k), function(x, xdata, vmeans, vvars, valph, nvar){
             llmvnorm(xdata, vmeans[x,], vvars[x,], valph[x], nvar)
         }, xdata = txdata, vmeans = params$means, vvars = params$vars,
         valph = params$alphas,nvar = nvar, mc.preschedule = T, mc.cores = cores, mc.progress = F)
