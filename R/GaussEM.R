@@ -46,11 +46,7 @@ GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8, start_ini = 10, start_i
     if(anyNA(xdata)){
         errorCondition("Data contains NA values. Remove or impute them.")
     }
-    parallel_function <- if(!require("bettermc")){
-        parallel_function <- parallel::mclapply
-        }else{
-        parallel_function <- bettermc::mclapply
-        }
+
     cenv <- environment()
     llmvnorm <- function(xdata, vmeans, vvars, valph, nvar){
         xi_xmean <- (xdata-vmeans)^2
@@ -82,9 +78,9 @@ GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8, start_ini = 10, start_i
         nvar <- ncol(xdata)
         ll_prior <- matrix(nrow = nrow(xdata), ncol = k)
 
-    ll_try <- parallel_function(1:start_ini, function(x){
+    ll_try <- parallel::mclapply(1:start_ini, function(x){
         params <- gaussEM_ini(xdata = xdata, k = k)
-        ll_prior <- parallel_function(seq_len(k), function(x, xdata, vmeans, vvars, valph, nvar){
+        ll_prior <- parallel::mclapply(seq_len(k), function(x, xdata, vmeans, vvars, valph, nvar){
             llmvnorm(xdata, vmeans[x,], vvars[x,], valph[x], nvar)
         }, xdata = txdata, vmeans = params$means, vvars = params$vars,
         valph = params$alphas,nvar = nvar, mc.preschedule = T, mc.cores = cores, mc.progress = F)
