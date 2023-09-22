@@ -46,7 +46,11 @@ GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8, start_ini = 10, start_i
     if(anyNA(xdata)){
         errorCondition("Data contains NA values. Remove or impute them.")
     }
-
+    parallel_function <- if(!require("bettermc")){
+        parallel_function <- parallel::mclapply
+        }else{
+        parallel_function <- bettermc::mclapply
+        }
     cenv <- environment()
     llmvnorm <- function(xdata, vmeans, vvars, valph, nvar){
         xi_xmean <- (xdata-vmeans)^2
