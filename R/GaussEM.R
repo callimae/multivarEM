@@ -83,7 +83,7 @@ GaussEM <- function(xdata, k, em.itr = 1500, tol = 1e-8, start_ini = 10, start_i
         ll_prior <- parallel::mclapply(seq_len(k), function(x, xdata, vmeans, vvars, valph, nvar){
             llmvnorm(xdata, vmeans[x,], vvars[x,], valph[x], nvar)
         }, xdata = txdata, vmeans = params$means, vvars = params$vars,
-        valph = params$alphas,nvar = nvar, mc.preschedule = T, mc.cores = cores, mc.progress = F)
+        valph = params$alphas,nvar = nvar, mc.preschedule = T, mc.cores = 1, mc.progress = F)
         ll_prior <- do.call(cbind, ll_prior)
         params$ini_ll <- exp(ll_prior) |> sum() |> log()
         return(params)
